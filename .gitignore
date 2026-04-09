@@ -1,5 +1,13 @@
-venv/
+# Python
 __pycache__/
 *.pyc
+.venv/
+
+# Logs
+output/*.log
+
+# Audio temp files
 *.wav
+
+# OS
 .DS_Store
