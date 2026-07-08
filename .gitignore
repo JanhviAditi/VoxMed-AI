@@ -3,11 +3,17 @@ __pycache__/
 *.pyc
 .venv/
 
-# Logs
+# Environment
+.env
+
+# Database
+*.db
+
+# Generated logs
 output/*.log
 
-# Audio temp files
-*.wav
+# Generated audio
+output/*.wav
 
-# OS
+# macOS
 .DS_Store
