@@ -1,7 +1,7 @@
 # VoxMed AI – Task Progress Tracker
 
 > Last updated: 2026-07-09  
-> Current Phase: **Phase 3 – Multilingual STT**  
+> Current Phase: **Phase 4 – NLP – Intent + Entities**  
 
 ---
 
@@ -25,12 +25,13 @@
 - [x] Created `processing/stt.py` (replaced transcriber.py)
 - [x] Supported live mic + language parameter
 
-## 🔲 PHASE 3: Multilingual STT (Next Up)
-- Auto language detection
-- Handle mixed English/Hindi input
-- Retry on unclear audio
+## ✅ PHASE 3: Multilingual STT
+### Done
+- [x] Auto language detection
+- [x] Handle mixed English/Hindi input
+- [x] Retry on unclear audio
 
-## 🔲 PHASE 4: NLP – Intent + Entities (Not Started)
+## 🔲 PHASE 4: NLP – Intent + Entities (Next Up)
 - `processing/nlp.py`
 - 4 intents: book, cancel, reschedule, inquiry
 - 4 entities: name, doctor, date, time

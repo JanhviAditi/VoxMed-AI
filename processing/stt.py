@@ -1,4 +1,5 @@
-import speech_recognition as sr
+import math
+from faster_whisper import WhisperModel
 
 import config
 from input.recorder import record_audio
@@ -6,25 +7,24 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-_recognizer = sr.Recognizer()
+logger.info(
+    "Loading Whisper model: %s (device: %s, compute: %s)", 
+    config.WHISPER_MODEL, config.WHISPER_DEVICE, config.WHISPER_COMPUTE_TYPE
+)
 
-_DEFAULT_LANG = config.SUPPORTED_LANGUAGES[config.DEFAULT_LANGUAGE]["code"]
+# Initialize the model once globally so it doesn't reload on every transcription
+_model = WhisperModel(
+    config.WHISPER_MODEL,
+    device=config.WHISPER_DEVICE,
+    compute_type=config.WHISPER_COMPUTE_TYPE
+)
 
-
-def transcribe(language: str = _DEFAULT_LANG) -> dict:
+def transcribe(language: str = None) -> dict:
     """
-    Capture audio from the microphone and transcribe it.
-
-    Parameters
-    ----------
-    language : BCP-47 code from config.SUPPORTED_LANGUAGES, e.g. "hi-IN".
-               Defaults to config.DEFAULT_LANGUAGE.
-
-    Returns
-    -------
-    dict with keys: text, language, confidence.
+    Capture audio from the microphone and transcribe it using faster-whisper.
+    If language is None, faster-whisper will automatically detect the language.
     """
-    logger.info("Transcription started | language=%s", language)
+    logger.info("Transcription started")
 
     try:
         # Record audio using custom recorder with silence detection
@@ -35,40 +35,44 @@ def transcribe(language: str = _DEFAULT_LANG) -> dict:
             silence_duration=config.SILENCE_DURATION,
         )
 
-        with sr.AudioFile(config.TEMP_AUDIO_FILE) as source:
-            audio = _recognizer.record(source)
-
         logger.info("Audio captured | transcribing...")
-
-        result = _recognizer.recognize_google(
-            audio,
-            language=language,
-            show_all=True,
+        
+        # Transcribe using faster-whisper
+        segments, info = _model.transcribe(
+            config.TEMP_AUDIO_FILE, 
+            beam_size=5,
+            language=language
         )
 
-        if not result or "alternative" not in result:
-            logger.warning("No transcription result returned")
-            return {"text": "", "language": language, "confidence": 0.0}
+        detected_lang = info.language
+        lang_prob = info.language_probability
 
-        best       = result["alternative"][0]
-        text       = best.get("transcript", "")
-        confidence = round(best.get("confidence", 0.0), 4)
+        text = ""
+        logprobs = []
+
+        # We must iterate over segments to actually perform the transcription
+        for segment in segments:
+            text += segment.text + " "
+            logprobs.append(segment.avg_logprob)
+
+        text = text.strip()
+
+        # Calculate a rough confidence score (0 to 1) based on average logprob
+        if logprobs:
+            avg_logprob = sum(logprobs) / len(logprobs)
+            confidence = math.exp(avg_logprob)
+        else:
+            confidence = 0.0
+
+        confidence = round(confidence, 4)
 
         logger.info(
-            "Transcription completed | lang=%s | confidence=%.2f | text_length=%d",
-            language, confidence, len(text),
+            "Transcription completed | lang=%s (prob=%.2f) | confidence=%.2f | text_length=%d",
+            detected_lang, lang_prob, confidence, len(text),
         )
 
-        return {"text": text, "language": language, "confidence": confidence}
-
-    except sr.UnknownValueError:
-        logger.warning("Speech not understood | language=%s", language)
-        return {"text": "", "language": language, "confidence": 0.0}
-
-    except sr.RequestError as e:
-        logger.error("Speech API request failed | error=%s", str(e))
-        return {"text": "", "language": language, "confidence": 0.0}
+        return {"text": text, "language": detected_lang, "confidence": confidence}
 
     except Exception:
         logger.exception("Unexpected error during transcription")
-        return {"text": "", "language": language, "confidence": 0.0}
+        return {"text": "", "language": "unknown", "confidence": 0.0}
