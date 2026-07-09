@@ -39,6 +39,8 @@ INTENTS = (
     "reschedule_appointment",
     "check_availability",
     "general_inquiry",
+    "affirm",
+    "deny",
 )
 
 # Higher number = higher priority when scores tie
@@ -48,6 +50,8 @@ _INTENT_PRIORITY: dict[str, int] = {
     "check_availability":     3,
     "book_appointment":       2,
     "general_inquiry":        1,
+    "affirm":                 1,
+    "deny":                   1,
 }
 
 REQUIRED_ENTITIES: dict[str, list[str]] = {
@@ -56,6 +60,8 @@ REQUIRED_ENTITIES: dict[str, list[str]] = {
     "reschedule_appointment": ["date", "time", "patient_name"],
     "check_availability":     ["date"],
     "general_inquiry":        [],
+    "affirm":                 [],
+    "deny":                   [],
 }
 
 # Single follow-up question per missing entity (priority order matters)
@@ -166,6 +172,17 @@ class RuleBasedEngine(BaseNLPEngine):
             r"\bwhere (is|are)\b.*(clinic|hospital|doctor)\b",
             r"\bhow much does it cost\b",
             r"\bare you open\b",
+        ],
+        
+        "affirm": [
+            r"\byes\b", r"\byeah\b", r"\byep\b", r"\byup\b", r"\bcorrect\b",
+            r"\bthat's right\b", r"\bexactly\b", r"\bsure\b", r"\bokay\b", r"\bok\b",
+            r"\bgo ahead\b", r"\bdo it\b", r"\bplease do\b",
+        ],
+        
+        "deny": [
+            r"\bno\b", r"\bnope\b", r"\bnot\b", r"\bwrong\b", r"\bincorrect\b",
+            r"\bwait\b", r"\bstop\b", r"\bcancel that\b", r"\bdon't\b",
         ],
     }
 

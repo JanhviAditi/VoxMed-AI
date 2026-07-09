@@ -1,7 +1,7 @@
 # VoxMed AI – Task Progress Tracker
 
 > Last updated: 2026-07-09  
-> Current Phase: **Phase 5 – Dialogue Manager**  
+> Current Phase: **Phase 6 – Appointments + Database**  
 
 ---
 
@@ -37,11 +37,12 @@
 - [x] 4 intents: book, cancel, reschedule, inquiry
 - [x] 4 entities: name, doctor, date, time
 
-## 🔲 PHASE 5: Dialogue Manager (Next Up)
-- `processing/dialogue.py`
-- State machine: GREETING → INTENT_CAPTURE → SLOT_FILLING → CONFIRMATION → ACTION → FAREWELL
+## ✅ PHASE 5: Dialogue Manager
+### Done
+- [x] `processing/dialogue.py`
+- [x] State machine: GREETING → INTENT_CAPTURE → SLOT_FILLING → CONFIRMATION → ACTION → FAREWELL
 
-## 🔲 PHASE 6: Appointments + Database (Not Started)
+## 🔲 PHASE 6: Appointments + Database (Next Up)
 - `database.py` with SQLite schema
 - `services/appointments.py` – booking engine
 

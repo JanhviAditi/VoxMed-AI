@@ -1,6 +1,7 @@
 import config
 from processing.stt import transcribe
 from processing.nlp import analyse
+from processing.dialogue import DialogueManager, DialogueState
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -8,28 +9,6 @@ logger = get_logger(__name__)
 
 def _print_divider():
     print("-" * 50)
-
-
-def _print_stt_result(result: dict):
-    print(f"\n  Language   : {result['language']}")
-    print(f"  Confidence : {result['confidence']:.2%}")
-    print(f"  Transcript : {result['text']}")
-
-
-def _print_nlp_result(nlp: dict):
-    print(f"\n  Intent     : {nlp['intent']}")
-    print(f"  Confidence : {nlp['confidence']:.2%}")
-
-    entities = nlp["entities"]
-    print("  Entities   :")
-    for key, value in entities.items():
-        print(f"    {key:<15}: {value}")
-
-    if nlp["missing_entities"]:
-        print(f"\n  Missing    : {', '.join(nlp['missing_entities'])}")
-
-    if nlp["follow_up_question"]:
-        print(f"\n  Follow-up  : {nlp['follow_up_question']}")
 
 
 def main():
@@ -48,8 +27,14 @@ def main():
         lang_code = None
         print("\nSelected: Auto-Detect")
 
-    while True:
-        print("\nPress Enter to start recording...")
+    dm = DialogueManager()
+    
+    # Initial greeting
+    _print_divider()
+    print(f"\n[AI]: {dm.get_greeting()}\n")
+
+    while dm.state != DialogueState.FAREWELL:
+        print("\nPress Enter to start speaking...")
         input()
 
         # ── Stage 1: Record + Transcribe ─────────────────────────────────────
@@ -57,16 +42,14 @@ def main():
         stt_result = transcribe(language=lang_code)
 
         if not stt_result["text"]:
-            print("\n  Could not transcribe audio. Please try again.")
+            print("\n[AI]: Could not transcribe audio. Please try again.")
             continue
 
         if stt_result["confidence"] < 0.4:
-            print("\n  Low confidence transcription. Please speak clearly and try again.")
+            print("\n[AI]: Low confidence transcription. Please speak clearly and try again.")
             continue
 
-        _print_divider()
-        print("[Transcription]")
-        _print_stt_result(stt_result)
+        print(f"\n[You]: {stt_result['text']}")
 
         # ── Stage 2: NLP ──────────────────────────────────────────────────────
         nlp_result = analyse(stt_result["text"])
@@ -76,16 +59,13 @@ def main():
             nlp_result["missing_entities"],
         )
 
+        # ── Stage 3: Dialogue Manager ─────────────────────────────────────────
+        ai_response = dm.process(stt_result["text"], nlp_result)
+        
         _print_divider()
-        print("[NLP]")
-        _print_nlp_result(nlp_result)
-        _print_divider()
+        print(f"\n[AI]: {ai_response}\n")
 
-        choice = input("\nRecord again? (y/n): ").strip().lower()
-        if choice != "y":
-            print("Goodbye!")
-            break
-
+    print("\nConversation ended. Goodbye!")
 
 if __name__ == "__main__":
     main()
