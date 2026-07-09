@@ -1,7 +1,7 @@
 # VoxMed AI – Task Progress Tracker
 
 > Last updated: 2026-07-09  
-> Current Phase: **Phase 4 – NLP – Intent + Entities**  
+> Current Phase: **Phase 5 – Dialogue Manager**  
 
 ---
 
@@ -31,12 +31,13 @@
 - [x] Handle mixed English/Hindi input
 - [x] Retry on unclear audio
 
-## 🔲 PHASE 4: NLP – Intent + Entities (Next Up)
-- `processing/nlp.py`
-- 4 intents: book, cancel, reschedule, inquiry
-- 4 entities: name, doctor, date, time
+## ✅ PHASE 4: NLP – Intent + Entities
+### Done
+- [x] `processing/nlp.py`
+- [x] 4 intents: book, cancel, reschedule, inquiry
+- [x] 4 entities: name, doctor, date, time
 
-## 🔲 PHASE 5: Dialogue Manager (Not Started)
+## 🔲 PHASE 5: Dialogue Manager (Next Up)
 - `processing/dialogue.py`
 - State machine: GREETING → INTENT_CAPTURE → SLOT_FILLING → CONFIRMATION → ACTION → FAREWELL
 

@@ -41,7 +41,8 @@ def transcribe(language: str = None) -> dict:
         segments, info = _model.transcribe(
             config.TEMP_AUDIO_FILE, 
             beam_size=5,
-            language=language
+            language=language,
+            task="translate"
         )
 
         detected_lang = info.language

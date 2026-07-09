@@ -5,19 +5,19 @@ Intent detection and entity extraction for VoxMed AI.
 
 Architecture
 ------------
-BaseNLPEngine      – abstract interface (swap in Rasa/OpenAI later)
+BaseNLPEngine      – abstract interface
 RuleBasedEngine    – semantic pattern + regex engine, fully offline
 analyse(text)      – module-level convenience function
 
 Design principles
 -----------------
+- English-only pipeline (STT layer handles native translation to English)
 - Patterns are phrase-level, not single keywords, so paraphrases match
 - Each intent has an explicit priority so specific intents beat generic ones
 - Date extraction finds ALL date mentions then picks the one tied to the action
 - Patient name extraction only fires on explicit introduction phrases
 - Confidence is computed from match strength, entity coverage, and conflicts
 - follow_up_question returns ONE natural question for the first missing entity
-- Supports English, Hindi, Kannada, Telugu and code-mixed sentences
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ _FOLLOW_UP: dict[str, str] = {
 _SYMPTOM_WORDS = {
     "feeling", "well", "sick", "fever", "pain", "cold", "cough", "tired",
     "weak", "dizzy", "nausea", "vomiting", "headache", "unwell", "ill",
-    "बुखार", "दर्द", "खांसी", "थकान", "चक्कर", "उल्टी", "बीमार",
+    "hurt", "hurting", "sore", "ache", "aching", "disease", "infection",
 }
 
 # ── Abstract interface ────────────────────────────────────────────────────────
@@ -101,10 +101,9 @@ class RuleBasedEngine(BaseNLPEngine):
     _PATTERNS: dict[str, list[str]] = {
 
         "book_appointment": [
-            # English — explicit booking
-            r"\bbook\b.*\bappointment\b",
-            r"\bschedule\b.*\bappointment\b",
-            r"\bmake\b.*\bappointment\b",
+            r"\bbook\b.*\b(appointment|consultation|session)\b",
+            r"\bschedule\b.*\b(appointment|consultation|session)\b",
+            r"\bmake\b.*\b(appointment|booking)\b",
             r"\bfix\b.*\bappointment\b",
             r"\bset up\b.*\bappointment\b",
             r"\barrange\b.*\bappointment\b",
@@ -113,25 +112,13 @@ class RuleBasedEngine(BaseNLPEngine):
             r"\bi need (to see|to consult|a doctor|an appointment)\b",
             r"\bi want to (see|meet|consult|visit) (dr\.?|doctor)\b",
             r"\bcan i see (dr\.?|doctor)\b",
-            r"\bappointment (chahiye|lena|book)\b",   # Hindi
-            r"\b(doctor|डॉक्टर) se milna\b",
-            r"\bappointment\b.*\b(beku|beda)\b",      # Kannada
-            r"\bappointment\b.*\bkavali\b",            # Telugu
-            r"\bnale\b.*\b(doctor|appointment)\b",     # Kannada: naale = tomorrow
-            r"\brepu\b.*\b(doctor|appointment)\b",     # Telugu/Kannada: repu = tomorrow
-            r"\bkal\b.*\b(doctor|appointment)\b",      # Hindi: kal = tomorrow
-            r"\bappointment\b.*\bnaale\b",
-            r"\bappointment\b.*\brepu\b",
-            r"\bappointment\b.*\bkal\b",
-            # Hindi script
-            r"अपॉइंटमेंट.*(लेना|बुक|चाहिए)",
-            r"डॉक्टर से मिलना",
-            r"समय लेना",
+            r"\b(get|take)\b.*\bappointment\b",
+            r"\blooking for an appointment\b",
+            r"\bconsult with a doctor\b",
         ],
 
         "cancel_appointment": [
-            # English
-            r"\bcancel\b.*\b(appointment|booking|slot)\b",
+            r"\bcancel\b.*\b(appointment|booking|slot|consultation)\b",
             r"\b(appointment|booking)\b.*\bcancel\b",
             r"\bcall off\b.*\bappointment\b",
             r"\bremove\b.*\bappointment\b",
@@ -139,17 +126,12 @@ class RuleBasedEngine(BaseNLPEngine):
             r"\bi (won't|will not|wont) be (coming|there|able to make it)\b",
             r"\bnot coming\b",
             r"\bdon't want the appointment\b",
-            # Hindi script
-            r"अपॉइंटमेंट.*(रद्द|कैंसिल)",
-            r"(रद्द|कैंसिल) करना",
-            r"नहीं आना",
-            # Hindi romanised
-            r"\b(appointment|booking)\b.*\b(cancel|radd)\b",
-            r"\bradd\b.*\bkarna\b",
+            r"\bcancel my visit\b",
+            r"\bdelete my booking\b",
+            r"\bwithdraw my appointment\b",
         ],
 
         "reschedule_appointment": [
-            # English
             r"\breschedule\b",
             r"\b(change|shift|move|push|postpone|defer)\b.*(appointment|slot|booking|it|date|time)\b",
             r"\b(appointment|slot|booking|it)\b.*(change|shift|move|push|postpone)\b",
@@ -160,21 +142,11 @@ class RuleBasedEngine(BaseNLPEngine):
             r"\bunable to (come|make it|attend)\b",
             r"\bput it off\b",
             r"\bdelay (my|the) appointment\b",
-            # Hindi script
-            r"(तारीख|समय|अपॉइंटमेंट).*(बदल)",
-            r"बदलना है",
-            r"दूसरे दिन",
-            # Hindi romanised
-            r"\b(date|time|appointment)\b.*\bbadalna\b",
-            r"\bbadalna\b",
-            # Kannada
-            r"\b(appointment|date|time)\b.*\bbadlisu\b",
-            # Telugu
-            r"\b(appointment|date|time)\b.*\bmarchu\b",
+            r"\bmake it later\b",
+            r"\bmake it earlier\b",
         ],
 
         "check_availability": [
-            # English
             r"\b(any|is there a?|check)\b.*(slot|opening|appointment|availability)\b",
             r"\b(slot|opening|appointment)\b.*(available|open|free|there)\b",
             r"\bis (dr\.?|doctor)\b.*\bfree\b",
@@ -182,17 +154,8 @@ class RuleBasedEngine(BaseNLPEngine):
             r"\bdo you have (any|an) (opening|slot|appointment)\b",
             r"\bcan i get a slot\b",
             r"\bany (slots?|appointments?)\b",
-            # Kannada
-            r"\bslot\b.*\bideya\b",
-            r"\bideya\b.*\bslot\b",
-            r"\bnale\b.*\bslot\b",
-            r"\bnaale\b.*\bslot\b",
-            # Telugu
-            r"\bslot\b.*\bundha\b",
-            r"\brepu\b.*\bslot\b",
-            # Hindi
-            r"\bkoi\b.*\bslot\b",
-            r"कोई.*(स्लॉट|अपॉइंटमेंट).*(है|उपलब्ध)",
+            r"\bwhat times are available\b",
+            r"\bwhen can i come\b",
         ],
 
         "general_inquiry": [
@@ -201,9 +164,8 @@ class RuleBasedEngine(BaseNLPEngine):
             r"\b(fee|cost|price|charge)\b.*(consult|appointment|visit)\b",
             r"\b(timing|hours?|open|close)\b.*(clinic|hospital|doctor)\b",
             r"\bwhere (is|are)\b.*(clinic|hospital|doctor)\b",
-            # Hindi script
-            r"(फीस|पता|समय|जानकारी).*(क्या|बताइए|है)",
-            r"क्या.*(फीस|पता|समय)",
+            r"\bhow much does it cost\b",
+            r"\bare you open\b",
         ],
     }
 
@@ -212,8 +174,6 @@ class RuleBasedEngine(BaseNLPEngine):
     _WEEKDAYS: dict[str, int] = {
         "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
         "friday": 4, "saturday": 5, "sunday": 6,
-        "सोमवार": 0, "मंगलवार": 1, "बुधवार": 2, "गुरुवार": 3,
-        "शुक्रवार": 4, "शनिवार": 5, "रविवार\u200c": 6,
     }
 
     _MONTHS: dict[str, int] = {
@@ -227,7 +187,7 @@ class RuleBasedEngine(BaseNLPEngine):
 
     # Action prepositions — a date following these belongs to the requested action
     _ACTION_PREPS = re.compile(
-        r"\b(to|for|on|at|by|naale|repu|kal|nale)\b\s*(.{0,40})",
+        r"\b(to|for|on|at|by|next)\b\s*(.{0,40})",
         re.IGNORECASE,
     )
 
@@ -237,12 +197,6 @@ class RuleBasedEngine(BaseNLPEngine):
         "morning": "09:00", "afternoon": "14:00",
         "evening": "17:00", "night":     "20:00",
         "noon":    "12:00", "midnight":  "00:00",
-        # Hindi
-        "सुबह": "09:00", "दोपहर": "14:00",
-        "शाम":  "17:00", "रात":   "20:00",
-        # Kannada / Telugu
-        "beligge": "09:00", "madhyahna": "14:00",
-        "sanje":   "17:00", "raatri":    "20:00",
     }
 
     # ── Specializations ───────────────────────────────────────────────────────
@@ -251,9 +205,7 @@ class RuleBasedEngine(BaseNLPEngine):
         "cardiologist", "dermatologist", "neurologist", "orthopedic",
         "pediatrician", "gynecologist", "psychiatrist", "dentist",
         "ophthalmologist", "general physician", "surgeon", "urologist",
-        "endocrinologist", "oncologist", "radiologist",
-        "हृदय रोग विशेषज्ञ", "त्वचा विशेषज्ञ", "न्यूरोलॉजिस्ट",
-        "बाल रोग विशेषज्ञ", "दंत चिकित्सक",
+        "endocrinologist", "oncologist", "radiologist", "therapist",
     ]
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -357,8 +309,8 @@ class RuleBasedEngine(BaseNLPEngine):
             # English — must follow an introduction phrase
             r"(?:my name is|i am|i'm|name is|patient(?:'s)? name is|patient is)\s+"
             r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)",
-            # Hindi script
-            r"(?:मेरा नाम|नाम है)\s+([\u0900-\u097F]+(?:\s+[\u0900-\u097F]+)?)",
+            # Fallback for just first name if capitalized correctly
+            r"(?:my name is|i am|i'm|name is)\s+([A-Z][a-z]+)",
         ]
         for pattern in patterns:
             m = re.search(pattern, original, re.IGNORECASE)
@@ -377,11 +329,6 @@ class RuleBasedEngine(BaseNLPEngine):
         if m:
             return f"Dr. {m.group(1).capitalize()}"
 
-        # Hindi script named doctor
-        m = re.search(r"डॉ\.?\s+([\u0900-\u097F]+)", original)
-        if m:
-            return f"डॉ. {m.group(1)}"
-
         # Specialization fallback
         for spec in self._SPECIALIZATIONS:
             if spec in lower:
@@ -394,7 +341,7 @@ class RuleBasedEngine(BaseNLPEngine):
     def _extract_date(self, text: str) -> str | None:
         """
         Find all date mentions in the text, then return the one that is
-        closest to an action preposition (to/for/on/naale/repu/kal).
+        closest to an action preposition (to/for/on).
         This prevents "today" in "I can't come today, move it to tomorrow"
         from being returned instead of "tomorrow".
         """
@@ -404,13 +351,13 @@ class RuleBasedEngine(BaseNLPEngine):
 
         # ── Collect all date mentions with their position ─────────────────────
 
-        for m in re.finditer(r"\btoday\b|आज", text):
+        for m in re.finditer(r"\btoday\b", text):
             candidates.append((m.start(), today.isoformat()))
 
-        for m in re.finditer(r"\btomorrow\b|कल|kal\b|naale\b|nale\b|repu\b", text):
+        for m in re.finditer(r"\btomorrow\b", text):
             candidates.append((m.start(), (today + timedelta(days=1)).isoformat()))
 
-        for m in re.finditer(r"\bday after tomorrow\b|परसों", text):
+        for m in re.finditer(r"\bday after tomorrow\b", text):
             candidates.append((m.start(), (today + timedelta(days=2)).isoformat()))
 
         # "next <weekday>"
@@ -420,12 +367,11 @@ class RuleBasedEngine(BaseNLPEngine):
                 delta = (self._WEEKDAYS[day_name] - today.weekday() + 7) % 7 or 7
                 candidates.append((m.start(), (today + timedelta(days=delta)).isoformat()))
 
-        # Hindi / Kannada / Telugu weekday names
+        # Weekday names
         for day_name, day_num in self._WEEKDAYS.items():
-            if not day_name.isascii():
-                for m in re.finditer(re.escape(day_name), text):
-                    delta = (day_num - today.weekday() + 7) % 7 or 7
-                    candidates.append((m.start(), (today + timedelta(days=delta)).isoformat()))
+            for m in re.finditer(r"\b" + re.escape(day_name) + r"\b", text):
+                delta = (day_num - today.weekday() + 7) % 7 or 7
+                candidates.append((m.start(), (today + timedelta(days=delta)).isoformat()))
 
         # "15th April 2026", "April 15"
         ordinal = r"(\d{1,2})(?:st|nd|rd|th)?"
@@ -442,7 +388,7 @@ class RuleBasedEngine(BaseNLPEngine):
                 candidates.append((m.start(), d))
 
         for m in re.finditer(
-            r"(" + month_re + r")\s+" + ordinal + r"(?:\s+(\d{4}))?", text
+            r"\b(" + month_re + r")\s+" + ordinal + r"(?:\s+(\d{4}))?", text
         ):
             month = self._MONTHS[m.group(1)]
             day   = int(m.group(2))
@@ -495,7 +441,7 @@ class RuleBasedEngine(BaseNLPEngine):
                 return value
 
         # "3 PM", "3:30 PM", "3pm"
-        m = re.search(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)", text, re.IGNORECASE)
+        m = re.search(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b", text, re.IGNORECASE)
         if m:
             hour     = int(m.group(1))
             minute   = int(m.group(2)) if m.group(2) else 0
