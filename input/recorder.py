@@ -1,11 +1,15 @@
 import pyaudio
 import wave
+import config
+from utils.logger import get_logger
 
-def record_audio(filename="test_output.wav", duration=10):
-    CHUNK = 1024
+logger = get_logger(__name__)
+
+def record_audio(filename=config.TEMP_AUDIO_FILE, duration=config.AUDIO_DURATION):
+    CHUNK = config.AUDIO_CHUNK
     FORMAT = pyaudio.paInt16
-    CHANNELS = 1
-    RATE = 44100
+    CHANNELS = config.AUDIO_CHANNELS
+    RATE = config.AUDIO_RATE
 
     logger.info(
         "Audio recording started | file=%s | duration=%ss | rate=%s | channels=%s",

@@ -20,6 +20,7 @@ TEMP_AUDIO_FILE = str(OUTPUT_DIR / "temp_recording.wav")
 SUPPORTED_LANGUAGES = {
     "1": {"code": "en-US", "name": "English", "tts_lang": "en"},
     "2": {"code": "hi-IN", "name": "Hindi",   "tts_lang": "hi"},
+    "3": {"code": "kn-IN", "name": "Kannada", "tts_lang": "kn"},
 }
 DEFAULT_LANGUAGE = "1"  # English
 
