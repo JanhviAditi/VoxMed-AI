@@ -1,9 +1,5 @@
 import audioop
 import wave
-import config
-from utils.logger import get_logger
-
-logger = get_logger(__name__)
 
 import pyaudio
 
