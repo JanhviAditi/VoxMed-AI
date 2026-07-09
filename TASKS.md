@@ -1,7 +1,7 @@
 # VoxMed AI – Task Progress Tracker
 
 > Last updated: 2026-07-09  
-> Current Phase: **Phase 6 – Appointments + Database**  
+> Current Phase: **Phase 7 – Text-to-Speech**  
 
 ---
 
@@ -42,11 +42,12 @@
 - [x] `processing/dialogue.py`
 - [x] State machine: GREETING → INTENT_CAPTURE → SLOT_FILLING → CONFIRMATION → ACTION → FAREWELL
 
-## 🔲 PHASE 6: Appointments + Database (Next Up)
-- `database.py` with SQLite schema
-- `services/appointments.py` – booking engine
+## ✅ PHASE 6: Appointments + Database
+### Done
+- [x] `database.py` with SQLite schema
+- [x] `services/appointments.py` – booking engine
 
-## 🔲 PHASE 7: Text-to-Speech (Not Started)
+## 🔲 PHASE 7: Text-to-Speech (Next Up)
 - `processing/tts.py` using pyttsx3
 
 ## 🔲 PHASE 8: Admin Dashboard (Not Started)

@@ -117,12 +117,36 @@ class DialogueManager:
 
     def _execute_action(self) -> str:
         self.state = DialogueState.FAREWELL
+        from services import appointments
+        
         if self.intent == "book_appointment":
-            return "Great! Your appointment has been successfully booked. Have a good day!"
+            success, msg = appointments.book_appointment(
+                self.entities.get("patient_name"),
+                self.entities.get("doctor", "General Physician"),
+                self.entities.get("date"),
+                self.entities.get("time")
+            )
+            return msg
+            
         elif self.intent == "cancel_appointment":
-            return "Your appointment has been canceled. Goodbye!"
+            success, msg = appointments.cancel_appointment(
+                self.entities.get("patient_name"),
+                self.entities.get("date")
+            )
+            return msg
+            
         elif self.intent == "reschedule_appointment":
-            return "Your appointment has been successfully rescheduled. Have a good day!"
+            success, msg = appointments.reschedule_appointment(
+                self.entities.get("patient_name"),
+                self.entities.get("date"),
+                self.entities.get("time")
+            )
+            return msg
+            
         elif self.intent == "check_availability":
-            return "There are slots available on that date. Please let us know if you want to book one."
+            success, msg = appointments.check_availability(
+                self.entities.get("date")
+            )
+            return msg
+            
         return "Action completed successfully."
