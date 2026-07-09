@@ -1,6 +1,7 @@
 import speech_recognition as sr
 
 import config
+from input.recorder import record_audio
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -26,11 +27,16 @@ def transcribe(language: str = _DEFAULT_LANG) -> dict:
     logger.info("Transcription started | language=%s", language)
 
     try:
-        with sr.Microphone() as source:
-            logger.info("Adjusting for ambient noise...")
-            _recognizer.adjust_for_ambient_noise(source, duration=2)
-            logger.info("Listening...")
-            audio = _recognizer.listen(source)
+        # Record audio using custom recorder with silence detection
+        record_audio(
+            filename=config.TEMP_AUDIO_FILE,
+            max_duration=config.AUDIO_DURATION,
+            silence_threshold=config.SILENCE_THRESHOLD,
+            silence_duration=config.SILENCE_DURATION,
+        )
+
+        with sr.AudioFile(config.TEMP_AUDIO_FILE) as source:
+            audio = _recognizer.record(source)
 
         logger.info("Audio captured | transcribing...")
 

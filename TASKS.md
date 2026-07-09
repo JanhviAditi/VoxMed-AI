@@ -1,7 +1,7 @@
 # VoxMed AI – Task Progress Tracker
 
-> Last updated: 2026-05-22  
-> Current Phase: **Phase 1 – Project Foundation**  
+> Last updated: 2026-07-09  
+> Current Phase: **Phase 3 – Multilingual STT**  
 
 ---
 
@@ -16,43 +16,16 @@
 - [x] Updated `.gitignore` – added `.env`, `*.db`, `output/*.log`
 - [x] Created `.env` – local credentials (gitignored, never pushed)
 - [x] Committed and pushed to GitHub
+- [x] Created stub files for processing and services (Step 7)
+- [x] Wired up `main.py` for end-to-end audio pipeline (Step 8)
 
-### 🔲 Remaining in Phase 1 (Pick up here next time)
+## ✅ PHASE 2: Microphone Integration
+### Done
+- [x] Refactored `input/recorder.py` with silence detection
+- [x] Created `processing/stt.py` (replaced transcriber.py)
+- [x] Supported live mic + language parameter
 
-**Step 7 – Create stub files** ← NEXT UP
-> Run this in terminal to create all empty module files:
-```bash
-cd /Users/kapilpal/voxmed/VoxMed-AI
-
-# Processing stubs
-touch processing/stt.py
-touch processing/tts.py
-touch processing/nlp.py
-touch processing/dialogue.py
-
-# Service and API stubs
-touch services/appointments.py
-touch api/server.py
-
-# Verify all files exist
-find . -name "*.py" | grep -v __pycache__ | grep -v .git | sort
-```
-
----
-
-**Step 8 – Wire up `main.py`** ← Phase 1 final milestone
-> Connect recorder → transcriber → print in a simple CLI loop.
-> This is the first time the full audio pipeline runs end-to-end!
-> Code will be provided when we reach this step.
-
----
-
-## 🔲 PHASE 2: Microphone Integration (Not Started)
-- Refactor `input/recorder.py` with silence detection
-- Create `processing/stt.py` (replace transcriber.py)
-- Support live mic + language parameter
-
-## 🔲 PHASE 3: Multilingual STT (Not Started)
+## 🔲 PHASE 3: Multilingual STT (Next Up)
 - Auto language detection
 - Handle mixed English/Hindi input
 - Retry on unclear audio
