@@ -1,16 +1,16 @@
-from input.recorder import record_audio
-from processing.transcriber import transcribe_audio
+from processing.stt import transcribe
+
 
 def main():
     while True:
         print("\nPress Enter to start recording...")
         input()
 
-        record_audio()
+        result = transcribe()
 
-        text = transcribe_audio()
-
-        print(f"\nYou said: {text}\n")
+        print(f"\nLanguage   : {result['language']}")
+        print(f"Confidence : {result['confidence']:.2%}")
+        print(f"Transcript : {result['text']}\n")
 
         choice = input("Record again? (y/n): ").strip().lower()
 
