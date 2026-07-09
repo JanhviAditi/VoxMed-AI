@@ -105,8 +105,20 @@ class DialogueManager:
 
     def _generate_confirmation_prompt(self) -> str:
         if self.intent == "book_appointment":
-            doc = self.entities.get("doctor", "a doctor")
-            return f"You want to book an appointment with {doc} on {self.entities.get('date')} at {self.entities.get('time')} for {self.entities.get('patient_name')}. Is that correct?"
+            doc = self.entities.get("doctor")
+            dept = self.entities.get("department")
+            symp = self.entities.get("symptoms")
+            
+            target = doc
+            if not target:
+                if dept:
+                    target = f"a doctor in {dept}"
+                elif symp:
+                    target = f"a doctor for your {symp[0]}"
+                else:
+                    target = "a doctor"
+                    
+            return f"You want to book an appointment with {target} on {self.entities.get('date')} at {self.entities.get('time')} for {self.entities.get('patient_name')}. Is that correct?"
         elif self.intent == "cancel_appointment":
             return f"You want to cancel the appointment on {self.entities.get('date')} for {self.entities.get('patient_name')}. Is that correct?"
         elif self.intent == "reschedule_appointment":
@@ -120,11 +132,13 @@ class DialogueManager:
         from services import appointments
         
         if self.intent == "book_appointment":
-            success, msg = appointments.book_appointment(
-                self.entities.get("patient_name"),
-                self.entities.get("doctor", "General Physician"),
-                self.entities.get("date"),
-                self.entities.get("time")
+            success, msg, context = appointments.book_appointment(
+                name=self.entities.get("patient_name"),
+                doctor=self.entities.get("doctor"),
+                department=self.entities.get("department"),
+                symptoms=self.entities.get("symptoms", []),
+                date=self.entities.get("date"),
+                time=self.entities.get("time")
             )
             return msg
             

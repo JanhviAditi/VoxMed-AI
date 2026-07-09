@@ -1,7 +1,7 @@
 """
 services/appointments.py
 ------------------------
-Business logic for managing appointments.
+Business logic for managing appointments with the new 9-table schema.
 """
 from typing import Optional
 from database import get_connection
@@ -9,69 +9,147 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-def _get_or_create_patient(name: str) -> int:
+def _get_or_create_patient(name: str, phone: str = None) -> int:
     conn = get_connection()
     cursor = conn.cursor()
-    
-    cursor.execute("SELECT id FROM patients WHERE name = ? COLLATE NOCASE", (name,))
+    cursor.execute("SELECT id FROM Patients WHERE name = ? COLLATE NOCASE", (name,))
     row = cursor.fetchone()
-    
     if row:
         patient_id = row['id']
     else:
-        cursor.execute("INSERT INTO patients (name) VALUES (?)", (name,))
+        cursor.execute("INSERT INTO Patients (name, phone) VALUES (?, ?)", (name, phone))
         conn.commit()
         patient_id = cursor.lastrowid
-        logger.info("Created new patient: %s (id: %d)", name, patient_id)
-        
+        logger.info("Created new patient: %s", name)
     conn.close()
     return patient_id
 
-def book_appointment(name: str, doctor: str, date: str, time: str) -> tuple[bool, str]:
-    """Books an appointment for the given patient."""
+def _map_symptoms_to_department(symptoms: list[str] | None) -> str | None:
+    if not symptoms:
+        return None
+    mapping = {
+        "chest pain": "Cardiology",
+        "heart palpitation": "Cardiology",
+        "fever": "General Medicine",
+        "cough": "General Medicine",
+        "headache": "General Medicine",
+        "stomach ache": "General Medicine",
+        "nausea": "General Medicine",
+        "vomiting": "General Medicine",
+        "dizzy": "General Medicine",
+        "weakness": "General Medicine",
+        "joint pain": "Orthopedics",
+        "skin rash": "Dermatology",
+        "breathing issue": "General Medicine",
+    }
+    for symp in symptoms:
+        if symp in mapping:
+            return mapping[symp]
+    return "General Medicine"
+
+def _get_doctor_id(doctor_name: str, cursor) -> Optional[int]:
+    """Find doctor ID. Very basic match for now."""
+    if not doctor_name:
+        return None
+    cursor.execute("SELECT id FROM Doctors WHERE name LIKE ?", (f"%{doctor_name}%",))
+    row = cursor.fetchone()
+    return row['id'] if row else None
+
+def book_appointment(name: str, doctor: str, department: str, symptoms: list[str], date: str, time: str) -> tuple[bool, str, dict]:
     patient_id = _get_or_create_patient(name)
-    
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Simple conflict check for same patient on same date
-    cursor.execute('''
-        SELECT id FROM appointments 
-        WHERE patient_id = ? AND appointment_date = ? AND status = 'BOOKED'
-    ''', (patient_id, date))
+    doctor_id = _get_doctor_id(doctor, cursor)
+    resolved_dept = department
     
-    if cursor.fetchone():
-        conn.close()
-        return False, f"You already have a booked appointment on {date}."
+    if not doctor_id:
+        if not resolved_dept:
+            resolved_dept = _map_symptoms_to_department(symptoms) or "General Medicine"
+            
+        cursor.execute("SELECT id FROM Departments WHERE name = ? COLLATE NOCASE", (resolved_dept,))
+        dept_row = cursor.fetchone()
+        
+        if dept_row:
+            dept_id = dept_row['id']
+            # Find any doctor in this department that has a free slot on date/time
+            cursor.execute('''
+                SELECT s.doctor_id FROM Slots s
+                JOIN Doctors d ON s.doctor_id = d.id
+                WHERE d.department_id = ? AND s.slot_date = ? AND s.slot_time = ? AND s.is_booked = 0
+                LIMIT 1
+            ''', (dept_id, date, time))
+            row = cursor.fetchone()
+            if row:
+                doctor_id = row['doctor_id']
 
+    if not doctor_id:
+        conn.close()
+        return False, f"Sorry, there are no doctors available in {resolved_dept or 'General Medicine'} on {date} at {time}.", {}
+
+    # Get doctor name for the response
+    cursor.execute("SELECT name FROM Doctors WHERE id = ?", (doctor_id,))
+    final_doctor_name = cursor.fetchone()['name']
+
+    # Find the specific slot
     cursor.execute('''
-        INSERT INTO appointments (patient_id, doctor, appointment_date, appointment_time, status)
-        VALUES (?, ?, ?, ?, 'BOOKED')
-    ''', (patient_id, doctor, date, time))
+        SELECT id, is_booked FROM Slots
+        WHERE doctor_id = ? AND slot_date = ? AND slot_time = ?
+    ''', (doctor_id, date, time))
+    slot = cursor.fetchone()
+    
+    if not slot:
+        conn.close()
+        return False, f"Sorry, {final_doctor_name} does not have a shift on {date} at {time}.", {}
+    
+    if slot['is_booked']:
+        conn.close()
+        return False, f"Sorry, that slot is already booked on {date} at {time}.", {}
+        
+    # Book the slot
+    cursor.execute("UPDATE Slots SET is_booked = 1 WHERE id = ?", (slot['id'],))
+    cursor.execute('''
+        INSERT INTO Appointments (patient_id, doctor_id, slot_id, status)
+        VALUES (?, ?, ?, 'BOOKED')
+    ''', (patient_id, doctor_id, slot['id']))
     
     conn.commit()
     conn.close()
     
-    logger.info("Appointment booked for %s with %s on %s at %s", name, doctor, date, time)
-    return True, f"Great! Your appointment with {doctor} on {date} at {time} has been booked."
+    context = {
+        "doctor": final_doctor_name,
+        "department": resolved_dept,
+        "date": date,
+        "time": time
+    }
+    
+    if symptoms:
+        msg = f"Since you are experiencing {symptoms[0]}, I have booked you with {final_doctor_name} in {resolved_dept} on {date} at {time}."
+    elif department:
+        msg = f"I have booked you with {final_doctor_name} in {resolved_dept} on {date} at {time}."
+    else:
+        msg = f"Great! Your appointment with {final_doctor_name} on {date} at {time} has been successfully booked."
+        
+    return True, msg, context
 
 def cancel_appointment(name: str, date: str) -> tuple[bool, str]:
-    """Cancels an appointment for the given patient on a specific date."""
     conn = get_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT id FROM patients WHERE name = ? COLLATE NOCASE", (name,))
+    cursor.execute("SELECT id FROM Patients WHERE name = ? COLLATE NOCASE", (name,))
     row = cursor.fetchone()
-    
     if not row:
         conn.close()
         return False, f"Sorry, I couldn't find a patient record for {name}."
-        
+    
     patient_id = row['id']
     
+    # Find active appointment for this patient on this date
     cursor.execute('''
-        SELECT id FROM appointments 
-        WHERE patient_id = ? AND appointment_date = ? AND status = 'BOOKED'
+        SELECT a.id as appt_id, s.id as slot_id 
+        FROM Appointments a
+        JOIN Slots s ON a.slot_id = s.id
+        WHERE a.patient_id = ? AND s.slot_date = ? AND a.status = 'BOOKED'
     ''', (patient_id, date))
     
     appt = cursor.fetchone()
@@ -79,76 +157,79 @@ def cancel_appointment(name: str, date: str) -> tuple[bool, str]:
         conn.close()
         return False, f"Sorry, I couldn't find a booked appointment on {date} for {name}."
         
-    cursor.execute('''
-        UPDATE appointments SET status = 'CANCELED' WHERE id = ?
-    ''', (appt['id'],))
+    # Free the slot and cancel appointment
+    cursor.execute("UPDATE Slots SET is_booked = 0 WHERE id = ?", (appt['slot_id'],))
+    cursor.execute("UPDATE Appointments SET status = 'CANCELED' WHERE id = ?", (appt['appt_id'],))
     
     conn.commit()
     conn.close()
     
-    logger.info("Appointment canceled for %s on %s", name, date)
     return True, f"Your appointment on {date} has been successfully canceled."
 
 def reschedule_appointment(name: str, date: str, time: str) -> tuple[bool, str]:
-    """
-    Reschedules an appointment. For simplicity, we find the first BOOKED appointment 
-    for this patient, mark it RESCHEDULED, and create a new one.
-    """
     conn = get_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT id FROM patients WHERE name = ? COLLATE NOCASE", (name,))
+    cursor.execute("SELECT id FROM Patients WHERE name = ? COLLATE NOCASE", (name,))
     row = cursor.fetchone()
-    
     if not row:
         conn.close()
         return False, f"Sorry, I couldn't find a patient record for {name}."
         
     patient_id = row['id']
     
-    # Find any active appointment
     cursor.execute('''
-        SELECT id, doctor FROM appointments 
-        WHERE patient_id = ? AND status = 'BOOKED'
-        ORDER BY appointment_date ASC LIMIT 1
+        SELECT a.id as appt_id, a.doctor_id, s.id as old_slot_id 
+        FROM Appointments a
+        JOIN Slots s ON a.slot_id = s.id
+        WHERE a.patient_id = ? AND a.status = 'BOOKED'
+        LIMIT 1
     ''', (patient_id,))
     
     appt = cursor.fetchone()
     if not appt:
         conn.close()
-        return False, f"Sorry, I couldn't find any active appointments for {name} to reschedule."
+        return False, f"Sorry, I couldn't find any active appointments to reschedule."
         
-    # Mark old as RESCHEDULED
+    # Find new slot for the SAME doctor
     cursor.execute('''
-        UPDATE appointments SET status = 'RESCHEDULED' WHERE id = ?
-    ''', (appt['id'],))
+        SELECT id FROM Slots 
+        WHERE doctor_id = ? AND slot_date = ? AND slot_time = ? AND is_booked = 0
+    ''', (appt['doctor_id'], date, time))
+    new_slot = cursor.fetchone()
     
-    # Insert new
+    if not new_slot:
+        conn.close()
+        return False, f"Sorry, the doctor is not available on {date} at {time}."
+        
+    # Apply changes
+    cursor.execute("UPDATE Slots SET is_booked = 0 WHERE id = ?", (appt['old_slot_id'],))
+    cursor.execute("UPDATE Appointments SET status = 'RESCHEDULED' WHERE id = ?", (appt['appt_id'],))
+    
+    cursor.execute("UPDATE Slots SET is_booked = 1 WHERE id = ?", (new_slot['id'],))
     cursor.execute('''
-        INSERT INTO appointments (patient_id, doctor, appointment_date, appointment_time, status)
-        VALUES (?, ?, ?, ?, 'BOOKED')
-    ''', (patient_id, appt['doctor'], date, time))
+        INSERT INTO Appointments (patient_id, doctor_id, slot_id, status)
+        VALUES (?, ?, ?, 'BOOKED')
+    ''', (patient_id, appt['doctor_id'], new_slot['id']))
     
     conn.commit()
     conn.close()
     
-    logger.info("Appointment rescheduled for %s to %s at %s", name, date, time)
     return True, f"Your appointment has been successfully rescheduled to {date} at {time}."
 
 def check_availability(date: str) -> tuple[bool, str]:
-    """Checks how many appointments exist on a given date."""
     conn = get_connection()
     cursor = conn.cursor()
     
     cursor.execute('''
-        SELECT COUNT(id) as count FROM appointments 
-        WHERE appointment_date = ? AND status = 'BOOKED'
+        SELECT COUNT(id) as count FROM Slots 
+        WHERE slot_date = ? AND is_booked = 0
     ''', (date,))
     
     count = cursor.fetchone()['count']
     conn.close()
     
-    if count < 10:  # Arbitrary limit for mock logic
-        return True, f"Yes, there are slots available on {date}. We have {count} appointments booked so far."
+    if count > 0:
+        return True, f"Yes, there are {count} available slots on {date}."
     else:
         return False, f"Sorry, {date} is fully booked. Would you like to check another day?"

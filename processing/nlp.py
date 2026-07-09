@@ -55,7 +55,7 @@ _INTENT_PRIORITY: dict[str, int] = {
 }
 
 REQUIRED_ENTITIES: dict[str, list[str]] = {
-    "book_appointment":       ["doctor", "date", "time", "patient_name"],
+    "book_appointment":       ["medical_need", "date", "time", "patient_name"],
     "cancel_appointment":     ["patient_name", "date"],
     "reschedule_appointment": ["date", "time", "patient_name"],
     "check_availability":     ["date"],
@@ -66,7 +66,7 @@ REQUIRED_ENTITIES: dict[str, list[str]] = {
 
 # Single follow-up question per missing entity (priority order matters)
 _FOLLOW_UP: dict[str, str] = {
-    "doctor":       "Which doctor would you like to consult?",
+    "medical_need": "Could you tell me your symptoms, or which department or doctor you'd like to visit?",
     "date":         "What date would you prefer?",
     "time":         "What time works best for you?",
     "patient_name": "May I know the patient's name?",
@@ -225,6 +225,19 @@ class RuleBasedEngine(BaseNLPEngine):
         "endocrinologist", "oncologist", "radiologist", "therapist",
     ]
 
+    # ── Symptoms & Departments ──────────────────────────────────────────────
+
+    _DEPARTMENTS: list[str] = [
+        "cardiology", "general medicine", "neurology", "dermatology",
+        "orthopedics", "pediatrics", "gynecology", "psychiatry"
+    ]
+    
+    _SYMPTOMS_LIST: list[str] = [
+        "fever", "cough", "chest pain", "heart palpitation", "headache",
+        "stomach ache", "nausea", "vomiting", "dizzy", "weakness",
+        "joint pain", "skin rash", "breathing issue"
+    ]
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     def analyse(self, text: str) -> dict[str, Any]:
@@ -308,12 +321,35 @@ class RuleBasedEngine(BaseNLPEngine):
     # ── Entity extraction ─────────────────────────────────────────────────────
 
     def _extract_entities(self, original: str, lower: str) -> dict[str, Any]:
+        doctor = self._extract_doctor(original, lower)
+        department = self._extract_department(lower)
+        symptoms = self._extract_symptoms(lower)
+        
+        # medical_need is satisfied if any of these are present
+        medical_need = bool(doctor or department or symptoms)
+        
         return {
             "patient_name": self._extract_patient_name(original),
-            "doctor":       self._extract_doctor(original, lower),
+            "doctor":       doctor,
+            "department":   department,
+            "symptoms":     symptoms,
+            "medical_need": medical_need,
             "date":         self._extract_date(lower),
             "time":         self._extract_time(lower),
         }
+
+    def _extract_department(self, lower: str) -> str | None:
+        for dept in self._DEPARTMENTS:
+            if dept in lower:
+                return dept.title()
+        return None
+        
+    def _extract_symptoms(self, lower: str) -> list[str] | None:
+        found = []
+        for symp in self._SYMPTOMS_LIST:
+            if symp in lower:
+                found.append(symp)
+        return found if found else None
 
     # ── Patient name ──────────────────────────────────────────────────────────
 
